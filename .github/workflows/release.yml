@@ -1,0 +1,60 @@
+name: Build and publish skill release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+      - skills/**
+      - scripts/build_release.py
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: skill-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the exact source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check and build the installable skill
+        run: |
+          python3 scripts/build_release.py --check
+          python3 scripts/build_release.py
+
+      - name: Publish the versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          skill_version="$(cat VERSION)"
+          skill_tag="v${skill_version}"
+          skill_archive="dist/understand-audit-fix-codebases-${skill_version}.zip"
+          skill_checksum="${skill_archive}.sha256"
+          skill_notes="docs/RELEASE_NOTES_${skill_tag}.md"
+          test -f "$skill_notes"
+          if gh release view "$skill_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            mkdir -p existing-release
+            gh release download "$skill_tag" --repo "$GITHUB_REPOSITORY" \
+              --pattern "$(basename "$skill_checksum")" --dir existing-release
+            cmp "$skill_checksum" "existing-release/$(basename "$skill_checksum")"
+            echo "Release ${skill_tag} already contains this package; preserving it."
+          else
+            gh release create "$skill_tag" "$skill_archive" "$skill_checksum" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "${skill_tag} — Understand, Audit, and Fix Codebases" \
+              --notes-file "$skill_notes" --latest
+          fi

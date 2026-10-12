@@ -1,0 +1,14 @@
+interface:
+  display_name: Understand, Audit, and Fix Codebases
+  short_description: Understand, audit, and fix code with evidence
+  default_prompt: Use $understand-audit-fix-codebases to choose Understand, Audit,
+    or Fix and ask only the questions needed to begin.
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  allow_implicit_invocation: false
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
